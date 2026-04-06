@@ -1,0 +1,28 @@
+# Dependencies
+node_modules/
+
+# Environment (contains secrets)
+.env
+.env.local
+.env.*.local
+
+# Build outputs
+.next/
+out/
+dist/
+
+# Prisma
+prisma/migrations/
+
+# Logs
+*.log
+npm-debug.log*
+pnpm-debug.log*
+
+# System
+.DS_Store
+*.pem
+
+# IDE
+.idea/
+.vscode/
