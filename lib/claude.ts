@@ -1,77 +1,121 @@
-import Anthropic from "@anthropic-ai/sdk";
+/**
+ * FreelanceOS LLM layer — OpenRouter + LangChain.js
+ *
+ * Models available via OpenRouter:
+ *   - anthropic/claude-3.5-sonnet      (Claude family, best quality)
+ *   - google/gemini-2.0-flash         (fast, cheap)
+ *   - openai/gpt-4o                   (OpenAI flagship)
+ *   - mistral/mistral-large-latest    (European model)
+ *
+ * Set OPENROUTER_API_KEY in .env to enable.
+ * If key is missing/placeholder, functions throw a clear error.
+ */
 
-if (!process.env.ANTHROPIC_API_KEY) {
-  throw new Error("Missing ANTHROPIC_API_KEY");
-}
+import { ChatOpenAI } from "@langchain/openai";
+import { StringOutputParser } from "@langchain/core/output_parsers";
+import { PromptTemplate } from "@langchain/core/prompts";
 
-export const anthropic = new Anthropic({
-  apiKey: process.env.ANTHROPIC_API_KEY,
-});
+// ─── Model selection ────────────────────────────────────────────────────────
 
-export async function generateText(
-  prompt: string,
-  systemPrompt?: string
-): Promise<string> {
-  const message = await anthropic.messages.create({
-    model: "claude-sonnet-4-20250514",
-    max_tokens: 1024,
-    system: systemPrompt ?? "You are a helpful assistant for FreelanceOS, an autonomous AI platform for freelancers.",
-    messages: [{ role: "user", content: prompt }],
-  });
+const hasRealKey =
+  process.env.OPENROUTER_API_KEY &&
+  !process.env.OPENROUTER_API_KEY.includes("placeholder") &&
+  process.env.OPENROUTER_API_KEY.startsWith("sk-or-");
 
-  const block = message.content[0];
-  if (block.type === "text") {
-    return block.text;
+const modelName = process.env.OPENROUTER_MODEL ?? "anthropic/claude-3.5-sonnet";
+
+function getModel(): ChatOpenAI {
+  if (!hasRealKey) {
+    throw new Error(
+      "[FreelanceOS LLM] OPENROUTER_API_KEY not set or is a placeholder. " +
+        "Add your key to .env → OPENROUTER_API_KEY=sk-or-... and restart."
+    );
   }
-  throw new Error("Unexpected response type from Claude API");
+  return new ChatOpenAI({
+    model: modelName,
+    openAIApiKey: process.env.OPENROUTER_API_KEY,
+    configuration: {
+      baseURL: "https://openrouter.ai/api/v1",
+      defaultHeaders: {
+        "HTTP-Referer": process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000",
+        "X-Title": "FreelanceOS",
+      },
+    },
+    temperature: 0.3,
+    maxTokens: 2048,
+  });
 }
 
-export async function generateStructured<T>(
+// ─── Helpers ─────────────────────────────────────────────────────────────────
+
+async function generateText(
+  prompt: string,
+  systemPrompt: string
+): Promise<string> {
+  const llm = getModel();
+  const chain = PromptTemplate.fromTemplate(
+    "{system}\n\n{prompt}"
+  ).pipe(llm).pipe(new StringOutputParser());
+  return chain.invoke({ system: systemPrompt, prompt });
+}
+
+async function generateStructured<T>(
   prompt: string,
   systemPrompt: string
 ): Promise<T> {
-  const message = await anthropic.messages.create({
-    model: "claude-sonnet-4-20250514",
-    max_tokens: 2048,
-    system: `${systemPrompt}\n\nYou MUST respond with valid JSON only. No markdown, no code fences, no explanation.`,
-    messages: [{ role: "user", content: prompt }],
-  });
-
-  const block = message.content[0];
-  if (block.type === "text") {
-    return JSON.parse(block.text) as T;
-  }
-  throw new Error("Unexpected response type from Claude API");
+  const llm = getModel();
+  // Ask for JSON explicitly
+  const fullSystem = `${systemPrompt}\n\nRespond with valid JSON only. No markdown, no explanation, no code fences.`;
+  const response = await generateText(prompt, fullSystem);
+  // Strip markdown fences if present
+  const cleaned = response.replace(/^```json\s*|```\s*$/gi, "").trim();
+  return JSON.parse(cleaned) as T;
 }
 
-export async function analyzeCommits(commits: Array<{
-  message: string;
-  additions: number;
-  deletions: number;
-  files: string[];
-}>): Promise<Array<{ description: string; estimatedHours: number }>> {
-  const prompt = `Analyze these git commits and estimate the development time for each.
-Return a JSON array of objects with "description" (brief task summary) and "estimatedHours" (number).
+// ─── Public API ──────────────────────────────────────────────────────────────
+
+export async function generateCompletion(
+  prompt: string,
+  systemPrompt = "You are a helpful AI assistant for FreelanceOS."
+): Promise<string> {
+  return generateText(prompt, systemPrompt);
+}
+
+export async function analyzeCommits(
+  commits: Array<{
+    message: string;
+    additions: number;
+    deletions: number;
+    files: string[];
+  }>
+): Promise<Array<{ description: string; estimatedHours: number }>> {
+  const prompt = `Analyze these git commits and estimate billable hours.
+Return a JSON array of objects: [{"description": "...", "estimatedHours": number}]
 
 Commits:
-${commits.map((c) => `- ${c.message} (+${c.additions}/-${c.deletions} in ${c.files.length} files: ${c.files.slice(0, 5).join(", ")})`).join("\n")}`;
+${commits
+  .map(
+    (c) =>
+      `- ${c.message} (+${c.additions}/-${c.deletions}, ${c.files.length} files: ${c.files.slice(0, 5).join(", ")})`
+  )
+  .join("\n")}`;
 
-  return generateStructured<Array<{ description: string; estimatedHours: number }>>(
-    prompt,
-    "You are a senior developer estimating billable hours from git commits. Be accurate and fair — round to nearest 0.5 hours. Consider complexity, not just line count."
-  );
+  return generateStructured(prompt, "Senior developer estimating billable hours. Round to nearest 0.5h.");
 }
 
 export async function detectScopeCreep(
   projectScope: string,
   request: string
-): Promise<{ isOutOfScope: boolean; confidence: number; explanation: string; suggestedCost: number | null }> {
-  const prompt = `Original project scope:\n${projectScope}\n\nNew client request:\n${request}\n\nAnalyze whether this request is within the agreed project scope or represents scope creep.
-Return JSON with: isOutOfScope (boolean), confidence (0-1), explanation (string), suggestedCost (number or null if in scope).`;
-
+): Promise<{
+  isOutOfScope: boolean;
+  confidence: number;
+  explanation: string;
+  suggestedCost: number | null;
+}> {
+  const prompt = `Original scope:\n${projectScope}\n\nNew request:\n${request}`;
   return generateStructured(
     prompt,
-    "You are a project management expert analyzing scope creep for freelancers. Be precise and fair to both parties."
+    "Project management expert analyzing scope creep. Return: {isOutOfScope, confidence (0-1), explanation, suggestedCost (number or null)}."
   );
 }
 
@@ -90,17 +134,46 @@ export async function draftFollowUpEmail(context: {
         ? "professional and firm"
         : "urgent but still professional";
 
-  const prompt = `Draft a payment follow-up email with a ${tone} tone.
+  const prompt = `Draft a payment follow-up email (${tone} tone).
 Client: ${context.clientName}
 Invoice: ${context.invoiceNumber}
 Amount: ${context.amount} ${context.currency}
 Days overdue: ${context.daysOverdue}
-Previous follow-ups sent: ${context.previousFollowUps}
+Previous follow-ups: ${context.previousFollowUps}
 
-Return JSON with "subject" and "body" (plain text, no HTML).`;
+Return JSON: {"subject": "...", "body": "..."} (plain text, no HTML)`;
 
   return generateStructured(
     prompt,
-    "You are a professional business communications writer. Write concise, effective payment follow-up emails that maintain good client relationships."
+    "Professional business communications writer for payment follow-ups."
+  );
+}
+
+export async function draftClientOnboardingEmail(context: {
+  clientName: string;
+  projectName: string;
+  freelancerName: string;
+  onboardingUrl: string;
+}): Promise<{ subject: string; body: string }> {
+  const prompt = `Draft a client onboarding welcome email.
+Client: ${context.clientName}
+Project: ${context.projectName}
+Freelancer: ${context.freelancerName}
+Onboarding URL: ${context.onboardingUrl}`;
+
+  return generateStructured(
+    prompt,
+    "Professional freelancer writing onboarding emails to new clients. Warm, clear, and actionable."
+  );
+}
+
+export async function generateInvoiceDescription(
+  projectName: string,
+  commitSummary: string
+): Promise<string> {
+  const prompt = `Project: ${projectName}\nGit commits / work done:\n${commitSummary}`;
+  return generateText(
+    prompt,
+    "You write concise, professional invoice line-item descriptions for freelance work. Focus on value delivered, not technical details."
   );
 }
