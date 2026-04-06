@@ -2,6 +2,7 @@ import { auth } from "@clerk/nextjs/server";
 import { prisma } from "@/lib/prisma";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import Link from "next/link";
 
 const statusColors: Record<string, string> = {
   DRAFT: "bg-zinc-700 text-zinc-300",
@@ -50,7 +51,9 @@ export default async function InvoicesPage() {
                 <span className="text-lg font-bold text-white">
                   {invoice.currency} {invoice.amount.toLocaleString()}
                 </span>
-                <Button variant="ghost" size="sm">View</Button>
+                <Link href={`/invoices/${invoice.id}`}>
+                  <Button variant="ghost" size="sm">View</Button>
+                </Link>
               </div>
             </div>
           </div>

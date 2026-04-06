@@ -1,6 +1,7 @@
 import { auth } from "@clerk/nextjs/server";
 import { prisma } from "@/lib/prisma";
 import { Button } from "@/components/ui/button";
+import Link from "next/link";
 
 export default async function ClientsPage() {
   const { userId } = await auth();
@@ -24,7 +25,7 @@ export default async function ClientsPage() {
 
       <div className="grid grid-cols-3 gap-4">
         {clients.map((client) => (
-          <div key={client.id} className="rounded-lg border border-zinc-800 bg-zinc-900 p-4">
+          <Link key={client.id} href={`/clients/${client.id}`} className="block rounded-lg border border-zinc-800 bg-zinc-900 p-4 hover:border-zinc-700 transition-colors">
             <div className="flex items-center justify-between">
               <div>
                 <h3 className="font-medium text-white">{client.name}</h3>
@@ -38,7 +39,7 @@ export default async function ClientsPage() {
               <span>{client._count.projects} projects</span>
               <span>{client._count.invoices} invoices</span>
             </div>
-          </div>
+          </Link>
         ))}
         {clients.length === 0 && (
           <div className="col-span-3 text-center py-12 text-zinc-500">

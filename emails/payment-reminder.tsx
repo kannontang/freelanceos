@@ -1,111 +1,191 @@
-interface PaymentReminderProps {
+import {
+  Body,
+  Button,
+  Container,
+  Head,
+  Heading,
+  Hr,
+  Html,
+  Preview,
+  Section,
+  Text,
+} from "@react-email/components";
+
+interface PaymentReminderEmailProps {
   clientName: string;
   invoiceNumber: string;
   amount: string;
-  currency: string;
   dueDate: string;
-  daysOverdue: number;
-  paymentUrl: string;
-  freelancerName: string;
+  status?: "overdue" | "pending";
 }
 
-export function paymentReminderEmail({
-  clientName,
-  invoiceNumber,
-  amount,
-  currency,
-  dueDate,
-  daysOverdue,
-  paymentUrl,
-  freelancerName,
-}: PaymentReminderProps) {
-  const isOverdue = daysOverdue > 0;
-  const subject = isOverdue
-    ? `Payment overdue: Invoice ${invoiceNumber} (${daysOverdue} days)`
-    : `Payment reminder: Invoice ${invoiceNumber} due ${dueDate}`;
+export default function PaymentReminderEmail({
+  clientName = "Client",
+  invoiceNumber = "INV-0001",
+  amount = "$1,000",
+  dueDate = "April 15, 2026",
+  status = "pending",
+}: PaymentReminderEmailProps) {
+  const isOverdue = status === "overdue";
 
-  const greeting = isOverdue
-    ? `I hope this message finds you well. I'm writing to follow up on invoice <strong>${invoiceNumber}</strong> for <strong>${currency} ${amount}</strong>, which was due on ${dueDate}.`
-    : `Just a friendly heads-up that invoice <strong>${invoiceNumber}</strong> for <strong>${currency} ${amount}</strong> is coming due on <strong>${dueDate}</strong>.`;
+  return (
+    <Html>
+      <Head />
+      <Preview>
+        {isOverdue
+          ? `Invoice ${invoiceNumber} is overdue`
+          : `Reminder: Invoice ${invoiceNumber} is due ${dueDate}`}
+      </Preview>
+      <Body style={main}>
+        <Container style={container}>
+          <Section style={header}>
+            <Heading style={headerText}>
+              {isOverdue ? "Invoice Overdue" : "Invoice Reminder"}
+            </Heading>
+            <Text style={headerSubtext}>FreelanceOS</Text>
+          </Section>
 
-  const tone = daysOverdue > 14
-    ? `<p>This invoice is now <strong>${daysOverdue} days past due</strong>. I'd appreciate it if we could resolve this promptly. If there are any issues with the invoice or payment process, please let me know so we can work it out.</p>`
-    : daysOverdue > 7
-    ? `<p>This payment is now ${daysOverdue} days overdue. Could you please arrange payment at your earliest convenience? If there's anything holding this up, I'm happy to discuss.</p>`
-    : isOverdue
-    ? `<p>If this has already been taken care of, please disregard this message. Otherwise, could you let me know when I can expect payment?</p>`
-    : `<p>No rush — just wanted to make sure this is on your radar.</p>`;
+          <Section style={body}>
+            <Text style={paragraph}>Hi {clientName},</Text>
+            <Text style={paragraph}>
+              Just a friendly reminder that invoice <strong>#{invoiceNumber}</strong> for{" "}
+              <strong>{amount}</strong> is {isOverdue ? "overdue" : "pending"} since{" "}
+              <strong>{dueDate}</strong>.
+            </Text>
 
-  const html = `
-<!DOCTYPE html>
-<html>
-<head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <style>
-    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; line-height: 1.6; color: #333; margin: 0; padding: 0; background: #f5f5f5; }
-    .wrapper { background: #f5f5f5; padding: 40px 20px; }
-    .container { max-width: 600px; margin: 0 auto; background: #ffffff; border-radius: 8px; overflow: hidden; }
-    .header { background: #18181b; padding: 24px 32px; }
-    .header h1 { color: #ffffff; font-size: 18px; margin: 0; }
-    .body { padding: 32px; }
-    .invoice-box { background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 6px; padding: 20px; margin: 24px 0; }
-    .invoice-box table { width: 100%; border-collapse: collapse; }
-    .invoice-box td { padding: 6px 0; font-size: 14px; }
-    .invoice-box td:first-child { color: #6b7280; }
-    .invoice-box td:last-child { text-align: right; font-weight: 600; color: #18181b; }
-    .amount-row td { font-size: 18px; padding-top: 12px; border-top: 1px solid #e5e7eb; }
-    .cta { text-align: center; margin: 32px 0; }
-    .cta a { display: inline-block; background: #2563eb; color: #ffffff; padding: 14px 32px; border-radius: 6px; text-decoration: none; font-weight: 600; font-size: 15px; }
-    .footer { padding: 24px 32px; border-top: 1px solid #e5e7eb; font-size: 12px; color: #9ca3af; text-align: center; }
-  </style>
-</head>
-<body>
-  <div class="wrapper">
-    <div class="container">
-      <div class="header">
-        <h1>${isOverdue ? "⏰" : "📋"} Invoice ${isOverdue ? "Overdue" : "Reminder"}</h1>
-      </div>
-      <div class="body">
-        <p>Hi ${clientName},</p>
-        <p>${greeting}</p>
+            <Section style={invoiceBox}>
+              <Text style={invoiceLabel}>Invoice</Text>
+              <Text style={invoiceValue}>#{invoiceNumber}</Text>
+              <Text style={invoiceLabel}>Amount</Text>
+              <Text style={invoiceValue}>{amount}</Text>
+              <Text style={invoiceLabel}>Due Date</Text>
+              <Text style={invoiceValue}>{dueDate}</Text>
+              <Text style={invoiceLabel}>Status</Text>
+              <Text style={{ ...invoiceValue, color: isOverdue ? "#ef4444" : "#eab308" }}>
+                {isOverdue ? "Overdue" : "Pending"}
+              </Text>
+            </Section>
 
-        <div class="invoice-box">
-          <table>
-            <tr>
-              <td>Invoice</td>
-              <td>${invoiceNumber}</td>
-            </tr>
-            <tr>
-              <td>Due Date</td>
-              <td>${dueDate}</td>
-            </tr>
-            ${isOverdue ? `<tr><td>Status</td><td style="color: #dc2626;">${daysOverdue} days overdue</td></tr>` : ""}
-            <tr class="amount-row">
-              <td>Amount Due</td>
-              <td>${currency} ${amount}</td>
-            </tr>
-          </table>
-        </div>
+            <Section style={ctaSection}>
+              <Button style={ctaButton} href="#">
+                Pay Now
+              </Button>
+            </Section>
 
-        ${tone}
+            <Text style={paragraph}>
+              If you&apos;ve already made this payment, please disregard this email.
+            </Text>
+          </Section>
 
-        <div class="cta">
-          <a href="${paymentUrl}">Pay Now →</a>
-        </div>
+          <Hr style={hr} />
 
-        <p>Thank you for your business!</p>
-        <p>Best regards,<br>${freelancerName}</p>
-      </div>
-      <div class="footer">
-        <p>Sent by FreelanceOS on behalf of ${freelancerName}</p>
-        <p>If you've already made this payment, please disregard this email.</p>
-      </div>
-    </div>
-  </div>
-</body>
-</html>
-  `.trim();
-
-  return { subject, html };
+          <Section style={footer}>
+            <Text style={footerText}>
+              Sent by FreelanceOS &mdash; your freelance admin
+            </Text>
+          </Section>
+        </Container>
+      </Body>
+    </Html>
+  );
 }
+
+const main = {
+  backgroundColor: "#0a0a0a",
+  fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
+  padding: "40px 0",
+};
+
+const container = {
+  backgroundColor: "#18181b",
+  borderRadius: "8px",
+  margin: "0 auto",
+  maxWidth: "600px",
+  overflow: "hidden" as const,
+};
+
+const header = {
+  backgroundColor: "#09090b",
+  padding: "32px",
+  textAlign: "center" as const,
+};
+
+const headerText = {
+  color: "#ffffff",
+  fontSize: "24px",
+  fontWeight: "bold",
+  margin: "0 0 4px",
+};
+
+const headerSubtext = {
+  color: "#71717a",
+  fontSize: "14px",
+  margin: "0",
+};
+
+const body = {
+  padding: "32px",
+};
+
+const paragraph = {
+  color: "#e4e4e7",
+  fontSize: "15px",
+  lineHeight: "24px",
+  margin: "0 0 16px",
+};
+
+const invoiceBox = {
+  backgroundColor: "#09090b",
+  borderRadius: "6px",
+  border: "1px solid #27272a",
+  padding: "20px",
+  margin: "24px 0",
+};
+
+const invoiceLabel = {
+  color: "#71717a",
+  fontSize: "12px",
+  fontWeight: "600" as const,
+  letterSpacing: "0.05em",
+  margin: "0 0 2px",
+  textTransform: "uppercase" as const,
+};
+
+const invoiceValue = {
+  color: "#ffffff",
+  fontSize: "15px",
+  fontWeight: "600" as const,
+  margin: "0 0 12px",
+};
+
+const ctaSection = {
+  textAlign: "center" as const,
+  margin: "32px 0",
+};
+
+const ctaButton = {
+  backgroundColor: "#2563eb",
+  borderRadius: "6px",
+  color: "#ffffff",
+  display: "inline-block",
+  fontSize: "15px",
+  fontWeight: "600",
+  padding: "14px 32px",
+  textDecoration: "none",
+};
+
+const hr = {
+  borderColor: "#27272a",
+  margin: "0",
+};
+
+const footer = {
+  padding: "24px 32px",
+  textAlign: "center" as const,
+};
+
+const footerText = {
+  color: "#52525b",
+  fontSize: "12px",
+  margin: "0",
+};

@@ -8,6 +8,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { formatCurrency, formatDate } from "@/lib/utils";
 import Link from "next/link";
+import { SendReminderButton } from "@/components/send-reminder-button";
 
 const statusVariant: Record<string, "default" | "success" | "warning" | "destructive" | "secondary"> = {
   DRAFT: "secondary",
@@ -42,9 +43,14 @@ export default async function InvoiceDetailPage({
             Invoice {invoice.number}
           </h1>
         </div>
-        <Badge variant={statusVariant[invoice.status] ?? "default"}>
-          {invoice.status}
-        </Badge>
+        <div className="flex items-center gap-3">
+          <Badge variant={statusVariant[invoice.status] ?? "default"}>
+            {invoice.status}
+          </Badge>
+          {(invoice.status === "SENT" || invoice.status === "OVERDUE") && (
+            <SendReminderButton invoiceNumber={invoice.number} />
+          )}
+        </div>
       </div>
 
       <div className="grid grid-cols-2 gap-6">
