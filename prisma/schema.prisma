@@ -221,8 +221,10 @@ model AgentActivity {
   action    String
   status    String   @default("success")
   details   Json?
+  invoiceId String?
   createdAt DateTime @default(now())
 
   @@index([userId, createdAt])
+  @@index([invoiceId])
   @@map("agent_activities")
 }

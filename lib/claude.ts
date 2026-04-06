@@ -31,9 +31,12 @@ function getModel(): ChatOpenAI {
         "Add your key to .env → OPENROUTER_API_KEY=sk-or-... and restart."
     );
   }
+  // LangChain OpenAI reads OPENAI_API_KEY env var; mirror our key there
   return new ChatOpenAI({
     model: modelName,
     openAIApiKey: process.env.OPENROUTER_API_KEY,
+    dangerouslyAllowBrowser: false,
+    maxRetries: 2,
     configuration: {
       baseURL: "https://openrouter.ai/api/v1",
       defaultHeaders: {

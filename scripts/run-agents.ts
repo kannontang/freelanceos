@@ -2,6 +2,9 @@
  * Run agents directly via Prisma (no HTTP needed).
  * Usage: pnpm exec tsx scripts/run-agents.ts [payment-followup|onboarding|all]
  */
+// LangChain OpenAI reads OPENAI_API_KEY — mirror OpenRouter key here
+process.env.OPENAI_API_KEY = process.env.OPENROUTER_API_KEY;
+
 import { PrismaClient } from "@prisma/client";
 import { PaymentFollowUpAgent } from "../agents/payment-followup";
 import { OnboardingAgent } from "../agents/onboarding";
