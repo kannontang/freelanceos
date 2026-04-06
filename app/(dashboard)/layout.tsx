@@ -1,24 +1,21 @@
-import { auth } from "@clerk/nextjs/server";
+import { auth } from "@/auth";
 import { redirect } from "next/navigation";
 import Link from "next/link";
 
-const hasRealClerk =
-  process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY &&
-  !process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY.includes("placeholder") &&
-  !process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY.includes("pk_test_placeholder");
+// If AUTH_SECRET is set, require login. Otherwise demo mode.
+const hasAuth = !!process.env.AUTH_SECRET;
 
 export default async function DashboardLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
-  if (hasRealClerk) {
-    const { userId } = await auth();
-    if (!userId) {
+  if (hasAuth) {
+    const session = await auth();
+    if (!session) {
       redirect("/sign-in");
     }
   }
-  // Without Clerk: allow access (demo mode)
 
   return (
     <div className="flex min-h-screen">
@@ -27,7 +24,7 @@ export default async function DashboardLayout({
         <div className="mb-8">
           <h1 className="text-lg font-bold text-white">FreelanceOS</h1>
           <p className="text-xs text-zinc-500">Your admin runs itself</p>
-          {!hasRealClerk && (
+          {!hasAuth && (
             <span className="mt-1 inline-block rounded bg-yellow-900 px-1.5 py-0.5 text-[10px] text-yellow-400">
               Demo mode
             </span>

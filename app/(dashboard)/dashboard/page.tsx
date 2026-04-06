@@ -6,33 +6,23 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { formatCurrency, formatDate } from "@/lib/utils";
 import Link from "next/link";
+import { auth } from "@/auth";
 
-const hasClerk = process.env.CLERK_SECRET_KEY && !process.env.CLERK_SECRET_KEY.includes("placeholder");
+const hasAuth = !!process.env.AUTH_SECRET;
 
-async function getAuthUserId(): Promise<string | null> {
-  if (!hasClerk) return null;
-  try {
-    const { auth } = await import("@clerk/nextjs/server");
-    const { userId } = await auth();
-    return userId;
-  } catch {
-    return null;
+async function getUserId(): Promise<string | undefined> {
+  if (!hasAuth) {
+    const demoUser = await prisma.user.findFirst();
+    return demoUser?.id;
   }
+  const session = await auth();
+  if (!session?.user?.email) return undefined;
+  const user = await prisma.user.findUnique({ where: { email: session.user.email } });
+  return user?.id;
 }
 
 export default async function DashboardPage() {
-  const clerkUserId = await getAuthUserId();
-
-  // If no Clerk, load demo user's data; otherwise load by Clerk user's DB id
-  let userId: string | undefined;
-  if (clerkUserId) {
-    const user = await prisma.user.findUnique({ where: { clerkId: clerkUserId } });
-    userId = user?.id;
-  } else {
-    // Demo mode: grab first user
-    const demoUser = await prisma.user.findFirst();
-    userId = demoUser?.id;
-  }
+  const userId = await getUserId();
 
   const [invoices, projects, recentActivity, pendingFollowUps, complianceAlerts] = await Promise.all([
     prisma.invoice.findMany({
@@ -89,11 +79,10 @@ export default async function DashboardPage() {
 
   return (
     <div className="p-6 space-y-6">
-      {!hasClerk && (
+      {!hasAuth && (
         <div className="rounded-lg border border-yellow-800 bg-yellow-950/50 p-4">
           <p className="text-sm text-yellow-300">
-            <strong>Demo Mode</strong> — Connect Clerk to see real authenticated data.
-            Set <code className="bg-yellow-900/50 px-1 rounded">CLERK_SECRET_KEY</code> in your <code className="bg-yellow-900/50 px-1 rounded">.env</code> file.
+            <strong>Demo Mode</strong> — Add <code className="bg-yellow-900/50 px-1 rounded">AUTH_SECRET</code> to your <code className="bg-yellow-900/50 px-1 rounded">.env</code> to enable real auth.
           </p>
         </div>
       )}

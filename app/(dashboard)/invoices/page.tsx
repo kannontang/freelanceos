@@ -3,18 +3,19 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { NewInvoiceForm } from "@/components/forms/new-invoice-form";
 import Link from "next/link";
+import { auth } from "@/auth";
 
-const hasClerk = process.env.CLERK_SECRET_KEY && !process.env.CLERK_SECRET_KEY.includes("placeholder");
+const hasAuth = !!process.env.AUTH_SECRET;
 
-async function getAuthUserId(): Promise<string | null> {
-  if (!hasClerk) return null;
-  try {
-    const { auth } = await import("@clerk/nextjs/server");
-    const { userId } = await auth();
-    return userId;
-  } catch {
-    return null;
+async function getUserId(): Promise<string | null> {
+  if (!hasAuth) {
+    const demoUser = await prisma.user.findFirst();
+    return demoUser?.id ?? null;
   }
+  const session = await auth();
+  if (!session?.user?.email) return null;
+  const user = await prisma.user.findUnique({ where: { email: session.user.email } });
+  return user?.id ?? null;
 }
 
 const statusColors: Record<string, string> = {
@@ -26,18 +27,11 @@ const statusColors: Record<string, string> = {
 };
 
 export default async function InvoicesPage() {
-  const clerkUserId = await getAuthUserId();
+  const userId = await getUserId();
 
-  let userId: string | undefined;
-  if (clerkUserId) {
-    const user = await prisma.user.findUnique({ where: { clerkId: clerkUserId } });
-    userId = user?.id;
-  } else {
-    const demoUser = await prisma.user.findFirst();
-    userId = demoUser?.id;
+  if (!userId) {
+    return <div className="p-6 text-zinc-500">Please sign in to view invoices.</div>;
   }
-
-  if (!userId) return null;
 
   const [invoices, clients, projects] = await Promise.all([
     prisma.invoice.findMany({
