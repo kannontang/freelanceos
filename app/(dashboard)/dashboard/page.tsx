@@ -195,8 +195,10 @@ export default async function DashboardPage() {
 
       {/* Agent activity + pending actions */}
       <div className="grid grid-cols-2 gap-6">
-        <AgentActivityFeed activities={recentActivity as React.ComponentProps<typeof AgentActivityFeed>["activities"]} />
-        <PendingActions />
+        <AgentActivityFeed
+          activities={recentActivity as React.ComponentProps<typeof AgentActivityFeed>["activities"]}
+        />
+        <PendingActions userId={userId} />
       </div>
 
       {/* Compliance Alerts */}

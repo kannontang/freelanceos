@@ -35,7 +35,6 @@ function getModel(): ChatOpenAI {
   return new ChatOpenAI({
     model: modelName,
     openAIApiKey: process.env.OPENROUTER_API_KEY,
-    dangerouslyAllowBrowser: false,
     maxRetries: 2,
     configuration: {
       baseURL: "https://openrouter.ai/api/v1",

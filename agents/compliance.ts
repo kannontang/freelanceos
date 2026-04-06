@@ -78,7 +78,7 @@ export class ComplianceMonitorAgent {
       select: { country: true },
     });
 
-    const countries = [...new Set(clients.map((c) => c.country).filter(Boolean))] as string[];
+    const countries = Array.from(new Set(clients.map((c) => c.country).filter(Boolean))) as string[];
 
     const applicableRules = COMPLIANCE_RULES.filter((rule) => {
       if (!rule.country) return rule.region === "EU" || rule.region === "ASIA";

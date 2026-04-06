@@ -83,7 +83,7 @@ export class PaymentFollowUpAgent {
     // Load invoice + client
     const invoice = await prisma.invoice.findUnique({
       where: { id: invoiceId },
-      include: { client: true },
+      include: { client: true, paymentFollowUps: { orderBy: { sentAt: "desc" }, take: 1 } },
     });
     if (!invoice) throw new Error("Invoice not found");
 

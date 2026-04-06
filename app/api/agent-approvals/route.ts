@@ -1,13 +1,13 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 
-// GET /api/agent-approvals — list pending/approved
+// GET /api/agent-approvals?status=PENDING&userId=...
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const status = searchParams.get("status") ?? "PENDING";
   const userId = searchParams.get("userId");
 
-  const where: Record<string, unknown> = { type: { in: ["PAYMENT_FOLLOWUP", "ONBOARDING"] } };
+  const where: Record<string, unknown> = { agentType: { in: ["PAYMENT_FOLLOWUP", "ONBOARDING"] } };
   if (userId) where.userId = userId;
   if (status === "PENDING") {
     where.action = "PENDING_APPROVAL";
@@ -19,10 +19,25 @@ export async function GET(request: Request) {
     where,
     orderBy: { createdAt: "desc" },
     take: 20,
-    include: { invoice: { include: { client: true } } },
   });
 
-  return NextResponse.json({ approvals });
+  // Hydrate invoice info for each pending item
+  const invoiceIds = approvals.map((a) => a.invoiceId).filter(Boolean) as string[];
+  const invoices =
+    invoiceIds.length > 0
+      ? await prisma.invoice.findMany({
+          where: { id: { in: invoiceIds } },
+          include: { client: true },
+        })
+      : [];
+  const invoiceMap = Object.fromEntries(invoices.map((i) => [i.id, i]));
+
+  const enriched = approvals.map((a) => ({
+    ...a,
+    invoice: a.invoiceId ? invoiceMap[a.invoiceId] ?? null : null,
+  }));
+
+  return NextResponse.json({ approvals: enriched });
 }
 
 // POST /api/agent-approvals — approve or deny
@@ -35,41 +50,30 @@ export async function POST(request: Request) {
   }
 
   if (approved) {
-    // Upsert: mark invoice approved, log APPROVED activity
     await prisma.agentActivity.create({
       data: {
         userId,
-        type: "PAYMENT_FOLLOWUP",
+        agentType: "PAYMENT_FOLLOWUP",
         action: "APPROVED",
         invoiceId,
-        metadata: { approvedAt: new Date().toISOString() },
+        details: { approvedAt: new Date().toISOString() },
       },
     });
-
-    // Update invoice status back to ESCALATION so agent picks it up next run
     await prisma.invoice.update({
       where: { id: invoiceId },
       data: { status: "OVERDUE" },
     });
-
     return NextResponse.json({ ok: true, message: "Invoice approved for sending" });
   } else {
-    // Denied: log and mark invoice as IGNORED
     await prisma.agentActivity.create({
       data: {
         userId,
-        type: "PAYMENT_FOLLOWUP",
+        agentType: "PAYMENT_FOLLOWUP",
         action: "IGNORED",
         invoiceId,
-        metadata: { deniedAt: new Date().toISOString() },
+        details: { deniedAt: new Date().toISOString() },
       },
     });
-
-    await prisma.invoice.update({
-      where: { id: invoiceId },
-      data: { status: "OVERDUE" },
-    });
-
     return NextResponse.json({ ok: true, message: "Invoice marked as ignored" });
   }
 }

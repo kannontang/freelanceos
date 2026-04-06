@@ -1,6 +1,6 @@
 /**
  * Test the full agent email flow
- * Usage: OPENAI_API_KEY=$OPENROUTER_API_KEY pnpm exec tsx scripts/test-agent-email.ts
+ * Usage: OPENAI_API_KEY=$OPENROUTER_API_KEY DEMO_USER_ID=<id> pnpm exec tsx scripts/test-agent-email.ts
  */
 import { PaymentFollowUpAgent } from "../agents/payment-followup";
 
@@ -18,7 +18,7 @@ async function main() {
 
   if (overdue.length > 0) {
     console.log("Processing first overdue invoice...");
-    const result = await agent.processOverdueInvoice(overdue[0].invoiceId);
+    const result = await agent.sendReminder(overdue[0].invoiceId);
     console.log("Email result:", JSON.stringify(result, null, 2));
   } else {
     console.log("No overdue invoices to process.");
