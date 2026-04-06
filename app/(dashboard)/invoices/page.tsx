@@ -1,8 +1,21 @@
-import { auth } from "@clerk/nextjs/server";
 import { prisma } from "@/lib/prisma";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { NewInvoiceForm } from "@/components/forms/new-invoice-form";
 import Link from "next/link";
+
+const hasClerk = process.env.CLERK_SECRET_KEY && !process.env.CLERK_SECRET_KEY.includes("placeholder");
+
+async function getAuthUserId(): Promise<string | null> {
+  if (!hasClerk) return null;
+  try {
+    const { auth } = await import("@clerk/nextjs/server");
+    const { userId } = await auth();
+    return userId;
+  } catch {
+    return null;
+  }
+}
 
 const statusColors: Record<string, string> = {
   DRAFT: "bg-zinc-700 text-zinc-300",
@@ -13,14 +26,36 @@ const statusColors: Record<string, string> = {
 };
 
 export default async function InvoicesPage() {
-  const { userId } = await auth();
+  const clerkUserId = await getAuthUserId();
+
+  let userId: string | undefined;
+  if (clerkUserId) {
+    const user = await prisma.user.findUnique({ where: { clerkId: clerkUserId } });
+    userId = user?.id;
+  } else {
+    const demoUser = await prisma.user.findFirst();
+    userId = demoUser?.id;
+  }
+
   if (!userId) return null;
 
-  const invoices = await prisma.invoice.findMany({
-    where: { userId },
-    include: { client: true, project: true },
-    orderBy: { createdAt: "desc" },
-  });
+  const [invoices, clients, projects] = await Promise.all([
+    prisma.invoice.findMany({
+      where: { userId },
+      include: { client: true, project: true },
+      orderBy: { createdAt: "desc" },
+    }),
+    prisma.client.findMany({
+      where: { userId },
+      select: { id: true, name: true },
+      orderBy: { name: "asc" },
+    }),
+    prisma.project.findMany({
+      where: { userId },
+      select: { id: true, name: true, clientId: true },
+      orderBy: { name: "asc" },
+    }),
+  ]);
 
   return (
     <div className="p-6 space-y-6">
@@ -29,7 +64,7 @@ export default async function InvoicesPage() {
           <h1 className="text-2xl font-bold text-white">Invoices</h1>
           <p className="text-sm text-zinc-500">{invoices.length} total invoices</p>
         </div>
-        <Button>+ New Invoice</Button>
+        <NewInvoiceForm clients={clients} projects={projects} />
       </div>
 
       <div className="space-y-3">
