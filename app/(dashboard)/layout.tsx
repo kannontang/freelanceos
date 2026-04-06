@@ -2,15 +2,23 @@ import { auth } from "@clerk/nextjs/server";
 import { redirect } from "next/navigation";
 import Link from "next/link";
 
+const hasRealClerk =
+  process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY &&
+  !process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY.includes("placeholder") &&
+  !process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY.includes("pk_test_placeholder");
+
 export default async function DashboardLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
-  const { userId } = await auth();
-  if (!userId) {
-    redirect("/sign-in");
+  if (hasRealClerk) {
+    const { userId } = await auth();
+    if (!userId) {
+      redirect("/sign-in");
+    }
   }
+  // Without Clerk: allow access (demo mode)
 
   return (
     <div className="flex min-h-screen">
@@ -19,6 +27,11 @@ export default async function DashboardLayout({
         <div className="mb-8">
           <h1 className="text-lg font-bold text-white">FreelanceOS</h1>
           <p className="text-xs text-zinc-500">Your admin runs itself</p>
+          {!hasRealClerk && (
+            <span className="mt-1 inline-block rounded bg-yellow-900 px-1.5 py-0.5 text-[10px] text-yellow-400">
+              Demo mode
+            </span>
+          )}
         </div>
         <nav className="space-y-1">
           {[
