@@ -1,8 +1,10 @@
 import { prisma } from "@/lib/prisma";
 import { auth } from "@/auth";
 import { SettingsClient } from "@/components/settings-client";
+import { getStripe } from "@/lib/stripe";
 
 const hasAuth = !!process.env.AUTH_SECRET;
+const stripeConfigured = !!process.env.STRIPE_SECRET_KEY;
 
 async function getUserId(): Promise<string | null> {
   if (!hasAuth) {
@@ -32,6 +34,25 @@ export default async function SettingsPage() {
   const resendConfigured = !!process.env.RESEND_API_KEY;
   const githubConnected = integrations.some((i) => i.provider === "github" && i.active);
 
+  // Check if user has an active Stripe subscription
+  let stripeConnected = false;
+  if (stripeConfigured && user?.email) {
+    try {
+      const stripe = getStripe();
+      const customers = await stripe.customers.list({ email: user.email, limit: 1 });
+      if (customers.data.length > 0) {
+        const subscriptions = await stripe.subscriptions.list({
+          customer: customers.data[0].id,
+          status: "active",
+          limit: 1,
+        });
+        stripeConnected = subscriptions.data.length > 0;
+      }
+    } catch {
+      // Stripe not configured or error checking
+    }
+  }
+
   return (
     <SettingsClient
       user={{
@@ -44,6 +65,7 @@ export default async function SettingsPage() {
       }}
       resendConfigured={resendConfigured}
       githubConnected={githubConnected}
+      stripeConnected={stripeConnected}
     />
   );
 }

@@ -38,6 +38,7 @@ export default async function DashboardLayout({
             { href: "/invoices", label: "Invoices", icon: "○" },
             { href: "/clients", label: "Clients", icon: "◉" },
             { href: "/settings", label: "Settings", icon: "⚙" },
+            { href: "/billing", label: "Billing", icon: "💳" },
           ].map(({ href, label, icon }) => (
             <Link
               key={href}

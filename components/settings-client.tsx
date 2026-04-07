@@ -19,12 +19,14 @@ interface SettingsPageProps {
   user: User;
   resendConfigured: boolean;
   githubConnected: boolean;
+  stripeConnected: boolean;
 }
 
 export function SettingsClient({
   user: initialUser,
   resendConfigured,
   githubConnected,
+  stripeConnected,
 }: SettingsPageProps) {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
@@ -146,6 +148,15 @@ export function SettingsClient({
             </div>
             <span className={`text-xs px-2 py-1 rounded ${githubConnected ? "bg-green-900 text-green-300" : "bg-zinc-800 text-zinc-500"}`}>
               {githubConnected ? "Connected" : "Not connected"}
+            </span>
+          </div>
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm font-medium text-white">FreelanceOS Billing</p>
+              <p className="text-xs text-zinc-500">Subscription for SaaS features</p>
+            </div>
+            <span className={`text-xs px-2 py-1 rounded ${stripeConnected ? "bg-green-900 text-green-300" : "bg-zinc-800 text-zinc-500"}`}>
+              {stripeConnected ? "Active" : "Not active"}
             </span>
           </div>
         </div>
