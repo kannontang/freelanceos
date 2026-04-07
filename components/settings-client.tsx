@@ -17,14 +17,12 @@ interface User {
 
 interface SettingsPageProps {
   user: User;
-  stripeConnected: boolean;
   resendConfigured: boolean;
   githubConnected: boolean;
 }
 
 export function SettingsClient({
   user: initialUser,
-  stripeConnected,
   resendConfigured,
   githubConnected,
 }: SettingsPageProps) {
@@ -132,15 +130,6 @@ export function SettingsClient({
       <div className="rounded-lg border border-zinc-800 bg-zinc-900 p-4 space-y-4">
         <h2 className="font-medium text-white">Integrations</h2>
         <div className="space-y-3">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-medium text-white">Stripe</p>
-              <p className="text-xs text-zinc-500">Payment tracking and invoicing</p>
-            </div>
-            <span className={`text-xs px-2 py-1 rounded ${stripeConnected ? "bg-green-900 text-green-300" : "bg-zinc-800 text-zinc-500"}`}>
-              {stripeConnected ? "Connected" : "Not connected"}
-            </span>
-          </div>
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm font-medium text-white">Resend</p>

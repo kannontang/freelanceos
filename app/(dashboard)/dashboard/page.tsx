@@ -196,7 +196,7 @@ function RecentActivity({ invoices }: { invoices: any[] }) {
 export default async function DashboardPage() {
   const userId = await getUserId();
 
-  const [invoices, projects, recentActivity, pendingFollowUps, complianceAlerts] = await Promise.all([
+  const [invoices, projects, recentActivity, complianceAlerts] = await Promise.all([
     prisma.invoice.findMany({
       where: userId ? { userId } : {},
       include: { client: true, project: true },
@@ -214,14 +214,7 @@ export default async function DashboardPage() {
       orderBy: { createdAt: "desc" },
       take: 20,
     }),
-    prisma.paymentFollowUp.findMany({
-      where: userId
-        ? { invoice: { userId } }
-        : {},
-      include: { invoice: { include: { client: true } } },
-      orderBy: { sentAt: "desc" },
-      take: 5,
-    }),
+
     prisma.complianceAlert.findMany({
       where: {
         ...(userId ? { userId } : {}),
@@ -238,7 +231,6 @@ export default async function DashboardPage() {
       .reduce((sum, i) => sum + i.amount, 0),
     pendingInvoices: invoices.filter((i) => i.status === "SENT").length,
     activeProjects: projects.filter((p) => p.status === "ACTIVE").length,
-    overduePayments: invoices.filter((i) => i.status === "OVERDUE").length,
   };
 
   const invoiceStatusVariant: Record<string, "default" | "success" | "warning" | "destructive" | "secondary"> = {
@@ -265,7 +257,7 @@ export default async function DashboardPage() {
       </div>
 
       {/* Stats cards */}
-      <div className="grid grid-cols-4 gap-4">
+      <div className="grid grid-cols-3 gap-4">
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium text-zinc-500">Total Revenue</CardTitle>
@@ -291,15 +283,6 @@ export default async function DashboardPage() {
           <CardContent>
             <div className="text-2xl font-bold">{stats.activeProjects}</div>
             <p className="text-xs text-zinc-500">In progress</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-zinc-500">Overdue</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-red-500">{stats.overduePayments}</div>
-            <p className="text-xs text-zinc-500">Need attention</p>
           </CardContent>
         </Card>
       </div>
@@ -391,7 +374,7 @@ export default async function DashboardPage() {
       </div>
 
       {/* Compliance Alerts */}
-      {complianceAlerts.length > 0 && (
+      {(complianceAlerts?.length ?? 0) > 0 && (
         <Card>
           <CardHeader>
             <CardTitle className="text-sm font-medium text-zinc-400">Compliance Alerts</CardTitle>

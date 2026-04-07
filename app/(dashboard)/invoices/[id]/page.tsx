@@ -25,7 +25,7 @@ export default async function InvoiceDetailPage({
 }) {
   const invoice = await prisma.invoice.findUnique({
     where: { id: params.id },
-    include: { client: true, project: true, paymentFollowUps: true },
+    include: { client: true, project: true },
   });
 
   if (!invoice) notFound();
@@ -197,30 +197,6 @@ export default async function InvoiceDetailPage({
         </Card>
       )}
 
-      {/* Payment Follow-ups */}
-      {invoice.paymentFollowUps.length > 0 && (
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-sm text-zinc-400">Payment Follow-ups</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            {invoice.paymentFollowUps.map((fu) => (
-              <div key={fu.id} className="rounded border border-zinc-800 p-3">
-                <div className="flex items-center justify-between mb-1">
-                  <Badge variant={fu.type === "POLITE_REMINDER" ? "default" : "warning"}>
-                    {fu.type.replace(/_/g, " ")}
-                  </Badge>
-                  <span className="text-xs text-zinc-500">{formatDate(fu.sentAt)}</span>
-                </div>
-                <p className="text-sm text-zinc-300">{fu.message}</p>
-                <p className="text-xs text-zinc-500 mt-1">
-                  via {fu.channel} · {fu.opened ? "Opened" : "Not opened"}
-                </p>
-              </div>
-            ))}
-          </CardContent>
-        </Card>
-      )}
     </div>
   );
 }

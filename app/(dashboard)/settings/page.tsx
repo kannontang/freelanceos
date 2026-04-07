@@ -29,7 +29,6 @@ export default async function SettingsPage() {
   const integrations = await prisma.integration.findMany({
     where: { userId },
   });
-  const stripeConnected = integrations.some((i) => i.provider === "stripe" && i.active);
   const resendConfigured = !!process.env.RESEND_API_KEY;
   const githubConnected = integrations.some((i) => i.provider === "github" && i.active);
 
@@ -43,7 +42,6 @@ export default async function SettingsPage() {
         currency: user.currency,
         hourlyRate: user.hourlyRate,
       }}
-      stripeConnected={stripeConnected}
       resendConfigured={resendConfigured}
       githubConnected={githubConnected}
     />
