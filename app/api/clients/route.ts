@@ -1,49 +1,89 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { z } from "zod";
+import { auth } from "@/auth";
 
-const createClientSchema = z.object({
-  userId: z.string(),
-  name: z.string().min(1),
-  email: z.string().email(),
-  company: z.string().optional(),
-  phone: z.string().optional(),
-  vatNumber: z.string().optional(),
-  country: z.string().optional(),
-  notes: z.string().optional(),
-});
+const hasAuth = !!process.env.AUTH_SECRET;
+
+async function getUserId(): Promise<string | null> {
+  if (!hasAuth) {
+    const demoUser = await prisma.user.findFirst();
+    return demoUser?.id ?? null;
+  }
+  const session = await auth();
+  if (!session?.user?.email) return null;
+  const user = await prisma.user.findUnique({ where: { email: session.user.email } });
+  return user?.id ?? null;
+}
 
 export async function GET(request: NextRequest) {
-  const { searchParams } = new URL(request.url);
-  const userId = searchParams.get("userId");
+  try {
+    const userId = await getUserId();
+    if (!userId) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
 
-  if (!userId) {
-    return NextResponse.json({ error: "userId is required" }, { status: 400 });
+    const clients = await prisma.client.findMany({
+      where: { userId },
+      include: { projects: true, invoices: true },
+      orderBy: { createdAt: "desc" },
+    });
+
+    return NextResponse.json(clients);
+  } catch (error) {
+    console.error("Get clients error:", error);
+    return NextResponse.json(
+      { error: "Internal server error" },
+      { status: 500 }
+    );
   }
-
-  const clients = await prisma.client.findMany({
-    where: { userId },
-    include: {
-      projects: { select: { id: true, name: true, status: true } },
-      invoices: { select: { id: true, amount: true, status: true } },
-    },
-    orderBy: { createdAt: "desc" },
-  });
-
-  return NextResponse.json(clients);
 }
 
 export async function POST(request: NextRequest) {
-  const body = await request.json();
-  const parsed = createClientSchema.safeParse(body);
+  try {
+    const userId = await getUserId();
+    if (!userId) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
 
-  if (!parsed.success) {
-    return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 });
+    const body = await request.json();
+    const { name, email, company, phone } = body;
+
+    if (!name) {
+      return NextResponse.json(
+        { error: "Client name is required" },
+        { status: 400 }
+      );
+    }
+
+    // Check if client with same email exists for this user
+    if (email) {
+      const existing = await prisma.client.findFirst({
+        where: { userId, email },
+      });
+      if (existing) {
+        return NextResponse.json(
+          { error: "Client with this email already exists" },
+          { status: 409 }
+        );
+      }
+    }
+
+    const client = await prisma.client.create({
+      data: {
+        userId,
+        name,
+        email: email || "",
+        company: company || null,
+        phone: phone || null,
+      },
+    });
+
+    return NextResponse.json(client, { status: 201 });
+  } catch (error) {
+    console.error("Create client error:", error);
+    return NextResponse.json(
+      { error: "Internal server error" },
+      { status: 500 }
+    );
   }
-
-  const client = await prisma.client.create({
-    data: parsed.data,
-  });
-
-  return NextResponse.json(client, { status: 201 });
 }

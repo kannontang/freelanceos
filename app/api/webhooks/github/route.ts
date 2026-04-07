@@ -1,31 +1,116 @@
 import { NextRequest, NextResponse } from "next/server";
-import { GitHubInvoiceAgent } from "@/agents/github-invoice";
+import { prisma } from "@/lib/prisma";
+import { createHmac } from "crypto";
 
-export async function POST(req: NextRequest) {
+// GitHub webhook secret
+const webhookSecret = process.env.GITHUB_WEBHOOK_SECRET || "";
+
+function verifyGitHubSignature(
+  body: string,
+  signature: string | null,
+  secret: string
+): boolean {
+  if (!signature || !secret) {
+    // If no secret configured, skip verification (development)
+    return true;
+  }
+
+  // GitHub sends signature as "sha256=..."
+  const hash = createHmac("sha256", secret).update(body).digest("hex");
+  const expectedSignature = `sha256=${hash}`;
+  
+  return signature === expectedSignature;
+}
+
+export async function POST(request: NextRequest) {
   try {
-    const payload = await req.json();
+    const body = await request.text();
+    const signature = request.headers.get("x-hub-signature-256");
+    const event = request.headers.get("x-github-event");
 
-    // Basic validation
-    if (!payload.repository?.full_name || !payload.commits) {
-      return NextResponse.json({ error: "Invalid payload" }, { status: 400 });
+    // Verify signature
+    if (!verifyGitHubSignature(body, signature, webhookSecret)) {
+      return NextResponse.json(
+        { error: "Invalid signature" },
+        { status: 401 }
+      );
     }
 
-    // Validate GitHub webhook signature in production
-    const signature = req.headers.get("x-hub-signature-256");
-    if (!signature && process.env.NODE_ENV === "production") {
-      return NextResponse.json({ error: "Missing signature" }, { status: 401 });
+    const payload = JSON.parse(body);
+    const userId = payload.repository?.owner?.login || "github";
+
+    switch (event) {
+      case "push": {
+        // Check for secrets/passwords in changed files
+        const commits = payload.commits || [];
+        const addedFiles = commits.flatMap((c: any) => c.added || []);
+        
+        // Check for potential secrets
+        const suspiciousFiles = addedFiles.filter((file: string) => {
+          const fileLower = file.toLowerCase();
+          return (
+            fileLower.includes("credential") ||
+            fileLower.includes("secret") ||
+            fileLower.includes("password") ||
+            fileLower.includes(".env") ||
+            fileLower.includes("api_key") ||
+            fileLower.includes("private_key")
+          );
+        });
+
+        if (suspiciousFiles.length > 0) {
+          // Create a high-severity compliance alert
+          await prisma.complianceAlert.create({
+            data: {
+              userId,
+              title: "Potential secret pushed to repository",
+              description: `Files potentially containing secrets were pushed: ${suspiciousFiles.join(", ")}`,
+              region: "GitHub",
+              regulation: "Security Best Practices",
+              severity: "WARNING",
+              dismissed: false,
+            },
+          });
+          console.log("Created compliance alert for suspicious files:", suspiciousFiles);
+        }
+
+        console.log("Push event received:", payload.ref);
+        break;
+      }
+
+      case "pull_request": {
+        // Create a PR alert (informational)
+        const pr = payload.pull_request;
+        await prisma.complianceAlert.create({
+          data: {
+            userId,
+            title: `Pull Request: ${pr?.title || "Untitled"}`,
+            description: `PR #${pr?.number} - ${pr?.head?.ref} -> ${pr?.base?.ref}`,
+            region: "GitHub",
+            regulation: "Code Review",
+            severity: "INFO",
+            dismissed: false,
+          },
+        });
+        console.log("PR event received:", pr?.title);
+        break;
+      }
+
+      case "issues": {
+        console.log("Issue event received:", payload.issue?.title);
+        break;
+      }
+
+      default:
+        console.log(`Unhandled GitHub event: ${event}`);
     }
 
-    // TODO: In production, look up the user by GitHub repo from integrations table
-    // For now, this requires auth — the webhook handler should extract userId
-    // from the repository name or a stored GitHub integration
-
-    const agent = new GitHubInvoiceAgent("placeholder-user-id"); // TODO: resolve from DB
-    const result = await agent.processWebhook(payload);
-
-    return NextResponse.json(result);
+    return NextResponse.json({ received: true });
   } catch (error) {
     console.error("GitHub webhook error:", error);
-    return NextResponse.json({ error: "Internal error" }, { status: 500 });
+    return NextResponse.json(
+      { error: "Webhook handler failed" },
+      { status: 500 }
+    );
   }
 }

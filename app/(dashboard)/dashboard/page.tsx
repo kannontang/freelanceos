@@ -21,6 +21,178 @@ async function getUserId(): Promise<string | undefined> {
   return user?.id;
 }
 
+// SVG Revenue Chart Component
+function RevenueChart({ invoices }: { invoices: any[] }) {
+  const currentYear = new Date().getFullYear();
+  
+  // Group paid invoices by month
+  const monthlyRevenue: Record<number, number> = {};
+  for (let i = 1; i <= 12; i++) monthlyRevenue[i] = 0;
+  
+  invoices
+    .filter((i) => i.status === "PAID" && new Date(i.paidAt || i.createdAt).getFullYear() === currentYear)
+    .forEach((i) => {
+      const month = new Date(i.paidAt || i.createdAt).getMonth() + 1;
+      monthlyRevenue[month] = (monthlyRevenue[month] || 0) + i.amount;
+    });
+
+  const maxRevenue = Math.max(...Object.values(monthlyRevenue), 100);
+  const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+  const barWidth = 24;
+  const gap = 8;
+  const chartWidth = 12 * (barWidth + gap);
+  const chartHeight = 120;
+
+  return (
+    <div className="space-y-2">
+      <h4 className="text-sm font-medium text-zinc-400">Monthly Revenue ({currentYear})</h4>
+      <svg width={chartWidth} height={chartHeight + 20} className="overflow-visible">
+        {months.map((month, i) => {
+          const barHeight = (monthlyRevenue[i + 1] / maxRevenue) * chartHeight;
+          return (
+            <g key={month}>
+              <rect
+                x={i * (barWidth + gap)}
+                y={chartHeight - barHeight}
+                width={barWidth}
+                height={barHeight}
+                fill="#3b82f6"
+                className="transition-all"
+              />
+              <text
+                x={i * (barWidth + gap) + barWidth / 2}
+                y={chartHeight + 14}
+                textAnchor="middle"
+                className="fill-zinc-500 text-xs"
+              >
+                {month.slice(0, 1)}
+              </text>
+            </g>
+          );
+        })}
+      </svg>
+    </div>
+  );
+}
+
+// SVG Status Breakdown Donut Chart
+function StatusBreakdown({ invoices }: { invoices: any[] }) {
+  const statusCounts = {
+    DRAFT: 0,
+    SENT: 0,
+    PAID: 0,
+    OVERDUE: 0,
+    CANCELLED: 0,
+  };
+  
+  invoices.forEach((i) => {
+    if (i.status in statusCounts) {
+      statusCounts[i.status as keyof typeof statusCounts]++;
+    }
+  });
+
+  const total = Object.values(statusCounts).reduce((a, b) => a + b, 0);
+  if (total === 0) return <p className="text-sm text-zinc-500">No invoices</p>;
+
+  const colors: Record<string, string> = {
+    DRAFT: "#71717a",
+    SENT: "#3b82f6",
+    PAID: "#22c55e",
+    OVERDUE: "#ef4444",
+    CANCELLED: "#52525b",
+  };
+
+  const size = 100;
+  const strokeWidth = 20;
+  const radius = (size - strokeWidth) / 2;
+  const circumference = 2 * Math.PI * radius;
+  
+  let offset = 0;
+  const segments = Object.entries(statusCounts).map(([status, count]) => {
+    const percent = count / total;
+    const dashArray = percent * circumference;
+    const segment = {
+      status,
+      count,
+      percent,
+      dashArray,
+      offset,
+      color: colors[status],
+    };
+    offset += dashArray;
+    return segment;
+  });
+
+  return (
+    <div className="space-y-2">
+      <h4 className="text-sm font-medium text-zinc-400">Invoice Status</h4>
+      <div className="flex items-center gap-4">
+        <svg width={size} height={size} className="rotate-[-90deg]">
+          {segments.map((seg) => (
+            <circle
+              key={seg.status}
+              cx={size / 2}
+              cy={size / 2}
+              r={radius}
+              fill="none"
+              stroke={seg.color}
+              strokeWidth={strokeWidth}
+              strokeDasharray={`${seg.dashArray} ${circumference}`}
+              strokeDashoffset={-seg.offset}
+            />
+          ))}
+        </svg>
+        <div className="space-y-1 text-xs">
+          {segments.map((seg) => (
+            <div key={seg.status} className="flex items-center gap-2">
+              <span className="w-3 h-3 rounded" style={{ backgroundColor: seg.color }} />
+              <span className="text-zinc-400">{seg.status}</span>
+              <span className="text-white">{seg.count}</span>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// Recent Activity Component
+function RecentActivity({ invoices }: { invoices: any[] }) {
+  // Get status changes from invoice history (simulated by looking at updatedAt vs createdAt)
+  const recentChanges = invoices
+    .filter((i) => i.status !== "DRAFT")
+    .slice(0, 5)
+    .map((i) => ({
+      id: i.id,
+      number: i.number,
+      status: i.status,
+      updatedAt: i.updatedAt,
+    }));
+
+  if (recentChanges.length === 0) {
+    return <p className="text-sm text-zinc-500">No recent activity</p>;
+  }
+
+  return (
+    <div className="space-y-2">
+      <h4 className="text-sm font-medium text-zinc-400">Recent Activity</h4>
+      <div className="space-y-2">
+        {recentChanges.map((change) => (
+          <div key={change.id} className="flex items-center justify-between text-sm">
+            <span className="text-white">{change.number}</span>
+            <div className="flex items-center gap-2">
+              <Badge variant={change.status === "PAID" ? "success" : change.status === "OVERDUE" ? "destructive" : "default"}>
+                {change.status}
+              </Badge>
+              <span className="text-xs text-zinc-500">{formatDate(change.updatedAt)}</span>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 export default async function DashboardPage() {
   const userId = await getUserId();
 
@@ -128,6 +300,34 @@ export default async function DashboardPage() {
           <CardContent>
             <div className="text-2xl font-bold text-red-500">{stats.overduePayments}</div>
             <p className="text-xs text-zinc-500">Need attention</p>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Charts Row */}
+      <div className="grid grid-cols-3 gap-4">
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium text-zinc-400">Revenue Chart</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <RevenueChart invoices={invoices} />
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium text-zinc-400">Status Breakdown</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <StatusBreakdown invoices={invoices} />
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium text-zinc-400">Recent Activity</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <RecentActivity invoices={invoices} />
           </CardContent>
         </Card>
       </div>
